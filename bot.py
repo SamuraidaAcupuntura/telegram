@@ -2,22 +2,15 @@ import os
 import openai
 import requests
 from flask import Flask, request
-from telegram import Update, InputFile
+from telegram import Update
 from telegram.ext import ApplicationBuilder, MessageHandler, ContextTypes, filters
 
-# Configurações
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-ALLOWED_EMAILS = [
-    'paulocosta@samuraidaacupuntura.com.br',
-    'alceuacosta@gmail.com',
-    'andreiabioterapia@hotmail.com'
-]
 
 openai.api_key = OPENAI_API_KEY
 app = Flask(__name__)
 
-# Função de análise de imagem via GPT
 async def process_image_and_text(image_url, text):
     response = openai.chat.completions.create(
         model="gpt-4-vision-preview",
@@ -34,7 +27,6 @@ async def process_image_and_text(image_url, text):
     )
     return response.choices[0].message.content.strip()
 
-# Função de resposta no Telegram
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.photo:
         photo = update.message.photo[-1]
@@ -49,12 +41,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             await update.message.reply_text(f"⚠️ Erro: {e}")
     else:
-        await update.message.reply_text("Envie uma imagem com uma pergunta ou legenda!")
+        await update.message.reply_text("Envie uma imagem com uma legenda ou pergunta.")
 
-# Inicialização do bot
 @app.route('/')
 def home():
-    return "Bot Samurai rodando com GPT-4 Vision!"
+    return "Bot do Samurai rodando!"
 
 async def start_bot():
     app_telegram = ApplicationBuilder().token(BOT_TOKEN).build()
