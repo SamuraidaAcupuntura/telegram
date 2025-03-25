@@ -1,95 +1,70 @@
 import os
-import logging
 import openai
 import requests
-from io import BytesIO
-from PIL import Image
+from flask import Flask, request
 from telegram import Update, InputFile
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
+from telegram.ext import ApplicationBuilder, MessageHandler, ContextTypes, filters
 
-# 📌 Sua API KEY da OpenAI
-openai.api_key = "SUA_OPENAI_API_KEY_AQUI"
-
-# 📌 Lista de IDs autorizados (você pode adicionar ou remover)
-ALUNOS_AUTORIZADOS = [
-    5254297,  # Substitua pelo seu ID real
+# Configurações
+BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+ALLOWED_EMAILS = [
+    'paulocosta@samuraidaacupuntura.com.br',
+    'alceuacosta@gmail.com',
+    'andreiabioterapia@hotmail.com'
 ]
 
-# 🎯 Início do Bot
-logging.basicConfig(level=logging.INFO)
+openai.api_key = OPENAI_API_KEY
+app = Flask(__name__)
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if user_id not in ALUNOS_AUTORIZADOS:
-        await update.message.reply_text("❌ Acesso negado. Você não está autorizado.")
-        return
-    await update.message.reply_text("🥋 Bem-vindo ao Assistente da Jornada do Samurai!\nEnvie uma pergunta ou uma imagem para análise.")
+# Função de análise de imagem via GPT
+async def process_image_and_text(image_url, text):
+    response = openai.chat.completions.create(
+        model="gpt-4-vision-preview",
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": text or "Descreva a imagem."},
+                    {"type": "image_url", "image_url": {"url": image_url}}
+                ]
+            }
+        ],
+        max_tokens=500
+    )
+    return response.choices[0].message.content.strip()
 
-async def texto(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if user_id not in ALUNOS_AUTORIZADOS:
-        await update.message.reply_text("❌ Acesso negado.")
-        return
-    prompt = update.message.text
-    await update.message.reply_text("🧠 Samurai está refletindo...")
+# Função de resposta no Telegram
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.message.photo:
+        photo = update.message.photo[-1]
+        photo_file = await photo.get_file()
+        image_url = photo_file.file_path
+        prompt = update.message.caption or "O que há nesta imagem?"
+        await update.message.reply_text("🧠 Samurai está analisando a imagem...")
 
-    try:
-        response = openai.chat.completions.create(
-            model="gpt-4-turbo",
-            messages=[
-                {"role": "system", "content": "Você é um mestre de Medicina Tradicional Chinesa."},
-                {"role": "user", "content": prompt}
-            ],
-            max_tokens=500
-        )
-        reply = response.choices[0].message.content.strip()
-        await update.message.reply_text(reply)
-    except Exception as e:
-        await update.message.reply_text(f"❌ Erro ao responder: {e}")
+        try:
+            result = await process_image_and_text(image_url, prompt)
+            await update.message.reply_text(result)
+        except Exception as e:
+            await update.message.reply_text(f"⚠️ Erro: {e}")
+    else:
+        await update.message.reply_text("Envie uma imagem com uma pergunta ou legenda!")
 
-async def imagem(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if user_id not in ALUNOS_AUTORIZADOS:
-        await update.message.reply_text("❌ Acesso negado.")
-        return
-    await update.message.reply_text("🖼️ Imagem recebida. Analisando...")
+# Inicialização do bot
+@app.route('/')
+def home():
+    return "Bot Samurai rodando com GPT-4 Vision!"
 
-    photo = await update.message.photo[-1].get_file()
-    image_bytes = requests.get(photo.file_path).content
+async def start_bot():
+    app_telegram = ApplicationBuilder().token(BOT_TOKEN).build()
+    app_telegram.add_handler(MessageHandler(filters.ALL, handle_message))
+    await app_telegram.initialize()
+    await app_telegram.start()
+    print("🤖 Bot iniciado.")
+    await app_telegram.updater.start_polling()
+    await app_telegram.updater.idle()
 
-    try:
-        response = openai.chat.completions.create(
-            model="gpt-4-vision-preview",
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": "Descreva a imagem e sugira algo relacionado à Medicina Chinesa."},
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/jpeg;base64,{BytesIO(image_bytes).getvalue().hex()}"
-                            }
-                        }
-                    ]
-                }
-            ],
-            max_tokens=500
-        )
-        reply = response.choices[0].message.content.strip()
-        await update.message.reply_text(reply)
-    except Exception as e:
-        await update.message.reply_text(f"❌ Erro ao processar imagem: {e}")
-
-def main():
-    app = ApplicationBuilder().token("SEU_BOT_TOKEN_DO_TELEGRAM").build()
-
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, texto))
-    app.add_handler(MessageHandler(filters.PHOTO, imagem))
-
-    print("🚀 Bot rodando...")
-    app.run_polling()
-
-if __name__ == "__main__":
-    main()
+if __name__ == '__main__':
+    import asyncio
+    asyncio.run(start_bot())
