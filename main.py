@@ -1,42 +1,40 @@
 import logging
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
+import os
+from telegram.ext import Application, CommandHandler
 from openai import OpenAI
 
-# Configurar o cliente OpenAI com a nova versão da lib (1.x)
-openai_client = OpenAI(api_key="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")
+# Chaves e tokens
+BOT_TOKEN = "7877551847:AAGEWNbIXmg49m4MJp8IPDycahowEi7TU80"
+OPENAI_API_KEY = "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"
+APP_URL = "https://telegram-bot-gpt.render.com"  # substitua pela URL real do seu app no Render
 
-# Ativar logs
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+# Configurar logs
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
+)
 
-# Resposta ao /start
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Olá! Sou o Samurai da Acupuntura. Envie sua pergunta e eu responderei com a sabedoria dos antigos 🈶")
+# Cliente OpenAI
+openai_client = OpenAI(api_key=OPENAI_API_KEY)
 
-# Resposta a mensagens de texto
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_input = update.message.text
+# Comando /start
+async def start(update, context):
+    await update.message.reply_text("Oss! Eu sou o assistente do Samurai da Acupuntura.")
 
-    try:
-        # Enviar a mensagem para a OpenAI
-        response = openai_client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": user_input}],
-        )
+# Inicialização do bot
+async def main():
+    application = Application.builder().token(BOT_TOKEN).build()
 
-        reply = response.choices[0].message.content
-        await update.message.reply_text(reply)
+    application.add_handler(CommandHandler("start", start))
 
-    except Exception as e:
-        logging.error(f"Erro interno: {e}")
-        await update.message.reply_text("⚠️ Tive um problema interno ao responder. Verifique a chave da OpenAI ou o modelo.")
+    PORT = int(os.environ.get("PORT", 5000))
+    await application.bot.delete_webhook()
+    await application.run_webhook(
+        listen="0.0.0.0",
+        port=PORT,
+        url_path=BOT_TOKEN,
+        webhook_url=f"{APP_URL}/{BOT_TOKEN}",
+    )
 
-# Iniciar bot
-if __name__ == '__main__':
-    app = ApplicationBuilder().token("7877551847:AAGEWNbIXmg49m4MJp8IPDycahowEi7TU80").build()
-
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-
-    print("Bot rodando como um guerreiro ancestral 🐉")
-    app.run_polling()
+if __name__ == "__main__":
+    import asyncio
+    asyncio.run(main())
