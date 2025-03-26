@@ -26,24 +26,14 @@ async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ],
             temperature=0.7,
             max_tokens=1000,
-            stream=True,
         )
 
-        texto_final = ""
-        async for parte in resposta:
-            try:
-                conteudo = parte.choices[0].delta.content
-                if conteudo:
-                    texto_final += conteudo
-            except Exception as e:
-                print("Erro no stream:", e)
-
-        texto_final += "\n\nossu."
-        await context.bot.send_message(chat_id=chat_id, text=texto_final)
+        conteudo = resposta.choices[0].message.content.strip()
+        await context.bot.send_message(chat_id=chat_id, text=conteudo + "\n\nossu.")
 
     except Exception as e:
-        print("Erro geral:", e)
-        await context.bot.send_message(chat_id=chat_id, text="Tive um problema interno. Tente novamente depois.\nossu.")
+        print(f"[ERRO AO RESPONDER]: {e}")
+        await context.bot.send_message(chat_id=chat_id, text="⚠️ Tive um problema interno ao responder. Verifique sua chave da OpenAI ou o modelo. \nossu.")
 
 if __name__ == "__main__":
     app = ApplicationBuilder().token(TOKEN).build()
