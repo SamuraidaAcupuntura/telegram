@@ -1,70 +1,82 @@
-import logging
-import asyncio
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
+import os
 import openai
+from flask import Flask, request
+from telegram import Update, Bot, ChatAction
+from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 
-# 🔒 Credenciais e e-mails permitidos
-BOT_TOKEN = '7877551847:AAGEWNbIXmg49m4MJp8IPDycahowEi7TU80'
-OPENAI_API_KEY = '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'
-EMAILS_AUTORIZADOS = ['paulocosta@samuraidaacupuntura.com.br', 'andreiabioterapia@hotmail.com']
+# Configurações
+BOT_TOKEN = "7877551847:AAGEWNbIXmg49m4MJp8IPDycahowEi7TU80"
+OPENAI_API_KEY = "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"
+WEBHOOK_URL = "https://telegram-wsro.onrender.com"  # Substitua pelo URL do seu serviço Render
 
+# Inicializações
 openai.api_key = OPENAI_API_KEY
-usuarios_autorizados = set()
+app_flask = Flask(__name__)
+telegram_app = Application.builder().token(BOT_TOKEN).build()
+bot = Bot(BOT_TOKEN)
 
-# Log
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Função para simular digitação e enviar por partes
+async def send_typing_and_reply(chat_id, full_text):
+    parts = full_text.split(". ")
+    for i, part in enumerate(parts):
+        await bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
+        await asyncio.sleep(1.8)  # Delay para parecer natural
+        final_text = part.strip() + ("." if i < len(parts) - 1 else " Ossu!")
+        await bot.send_message(chat_id=chat_id, text=final_text)
 
-# 🥋 Comandos do Bot
+# Comando /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("👋 Envie seu e-mail para ativar o acesso, guerreiro.")
+    await update.message.reply_text("Seja bem-vindo, guerreiro do caminho. Escreva sua dúvida.")
 
-async def verificar_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    email = update.message.text.strip().lower()
-    if email in EMAILS_AUTORIZADOS:
-        usuarios_autorizados.add(update.effective_user.id)
-        await update.message.reply_text("✅ Acesso concedido. Pode perguntar, guerreiro.")
-    else:
-        await update.message.reply_text("❌ E-mail não autorizado. Tente novamente.")
+# Manipulador de mensagens
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_message = update.message.text
+    chat_id = update.effective_chat.id
 
-async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if user_id not in usuarios_autorizados:
-        await update.message.reply_text("⚠️ Envie seu e-mail para liberar o acesso.")
-        return
+    # Avisa que está digitando
+    await bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
 
-    pergunta = update.message.text
-    await update.message.chat.send_action(action="typing")
+    # Geração com OpenAI
+    response = openai.ChatCompletion.create(
+        model="gpt-4",
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "Você é um assistente espiritual e sábio, treinado pelo Samurai da Acupuntura, "
+                    "comunica-se com profundidade e serenidade. Se finalize sempre com 'Ossu!'. "
+                    "Os emails para contato são paulocosta@samuraidaacupuntura.com.br e andreiabioterapia@hotmail.com."
+                ),
+            },
+            {"role": "user", "content": user_message},
+        ]
+    )
 
-    try:
-        resposta = openai.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": pergunta}]
-        )
-        texto_resposta = resposta.choices[0].message.content
+    reply_text = response.choices[0].message["content"]
+    await send_typing_and_reply(chat_id, reply_text)
 
-        frases = texto_resposta.split(". ")
-        for frase in frases:
-            if frase.strip():
-                await update.message.chat.send_action(action="typing")
-                await asyncio.sleep(1.5)  # Delay entre frases
-                await update.message.reply_text(frase.strip() + ".")
-        
-        await asyncio.sleep(1)
-        await update.message.reply_text("Ossu 🥋")
+# Rota Webhook
+@app_flask.post("/webhook")
+async def webhook():
+    data = request.get_json(force=True)
+    update = Update.de_json(data, bot)
+    await telegram_app.process_update(update)
+    return "ok"
 
-    except Exception as e:
-        logger.error(f"Erro ao consultar OpenAI: {e}")
-        await update.message.reply_text("❌ Erro ao buscar resposta. Tente novamente.")
+# Configuração inicial para definir o webhook
+async def set_webhook():
+    await bot.delete_webhook()
+    await bot.set_webhook(url=WEBHOOK_URL)
 
-# 🧠 Execução
-if __name__ == '__main__':
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
+# Início
+if __name__ == "__main__":
+    import asyncio
+    import threading
 
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, verificar_email))
-    app.add_handler(MessageHandler(filters.TEXT & filters.User(user_id=usuarios_autorizados), responder))
+    async def run():
+        telegram_app.add_handler(CommandHandler("start", start))
+        telegram_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+        await set_webhook()
 
-    print("🔥 Bot rodando com delay e estilo Samurai...")
-    app.run_polling()
+    threading.Thread(target=lambda: app_flask.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))).start()
+    asyncio.run(run())
