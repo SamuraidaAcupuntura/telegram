@@ -1,61 +1,62 @@
-import asyncio
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
+import logging
+import time
+from telegram import Update, ChatAction
+from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters, CommandHandler
 
-# 🔐 Token do seu bot
-TOKEN = "7877551847:AAED0zlqMiNgmxC4AIoCJMFSMZmV0evfIXM"
+# Token do bot já configurado
+BOT_TOKEN = '7877551847:AAED0zlqMiNgmxC4AIoCJMFSMZmV0evfIXM'
 
-# 📧 Lista de e-mails autorizados
+# E-mails autorizados
 emails_autorizados = [
-    "paulocosta@samuraidaacupuntura.com.br",
-    "alceuacosta@gmail.com",
-    "andreiabioterapia@hotmail.com"
+    "cliente1@email.com",
+    "cliente2@email.com",
+    "samurai@acupuntura.com",
+    "andreia@divergente.com"
 ]
 
-# 💾 Armazena usuários autorizados por ID
-usuarios_autorizados = set()
+# Mapeia o user_id com o e-mail validado
+usuarios_autenticados = {}
 
-# 🎯 Comando /start
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.message.reply_text("Olá! Envie o e-mail da sua compra na Hotmart para liberar o acesso ao dojo 🥋")
+# Log
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
 
-# ✅ Verifica se o e-mail é autorizado
-async def verificar_email(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    user_id = update.effective_user.id
-    texto = update.message.text.strip()
+# Início do bot
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Bem-vindo ao assistente do Samurai 🥋\nDigite seu e-mail para validar seu acesso:")
 
-    if "@" in texto and "." in texto:
-        if texto.lower() in emails_autorizados:
-            usuarios_autorizados.add(user_id)
-            await update.message.reply_text("✅ Acesso liberado! Pode enviar suas perguntas, guerreiro.")
+# Resposta geral
+async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
+    texto = update.message.text.strip().lower()
+
+    if user_id not in usuarios_autenticados:
+        if texto in emails_autorizados:
+            usuarios_autenticados[user_id] = texto
+            await update.message.reply_text("✅ E-mail validado com sucesso! Pode enviar sua pergunta agora.")
         else:
-            await update.message.reply_text("❌ E-mail não encontrado na lista de compradores.")
-    elif user_id in usuarios_autorizados:
-        await simular_resposta(update)
-    else:
-        await update.message.reply_text("⛔ Primeiro envie o e-mail da compra para entrar no dojo.")
+            await update.message.reply_text("❌ E-mail não autorizado. Por favor, tente novamente.")
+        return
 
-# ✍️ Simula digitação com mensagens em partes
-async def simular_resposta(update: Update) -> None:
-    msg = await update.message.reply_text("Escrevendo...")
+    # Se já validado, simula digitação e responde
+    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action=ChatAction.TYPING)
+    time.sleep(2)
 
-    resposta_em_partes = [
-        "Você acessou a sabedoria do Samurai da Acupuntura 🐉",
-        "Essa jornada é feita de disciplina, energia e verdade.",
-        "Sinta-se parte da linhagem.",
-        "Caminhe com honra.",
-        "Ossu!"
-    ]
+    await update.message.reply_text("Estou analisando sua pergunta...")
+    time.sleep(2)
 
-    texto = ""
-    for parte in resposta_em_partes:
-        texto += parte + "\n"
-        await asyncio.sleep(1.5)
-        await msg.edit_text(texto)
+    resposta = (
+        "Essa é uma resposta simbólica do assistente Samurai.\n"
+        "Em breve estarei conectado à inteligência total do Caminho.\n\n"
+        "Ossu 🥋"
+    )
+    await update.message.reply_text(resposta)
 
-# 🚀 Executa o bot
-if __name__ == "__main__":
-    app = ApplicationBuilder().token(TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, verificar_email))
-    app.run_polling()
+# App e handlers
+app = ApplicationBuilder().token(BOT_TOKEN).build()
+app.add_handler(CommandHandler("start", start))
+app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, responder))
+
+app.run_polling()
