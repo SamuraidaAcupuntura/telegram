@@ -1,59 +1,55 @@
-import logging
-import asyncio
 import os
-from telegram import Update
-from telegram.ext import (
-    ApplicationBuilder,
-    ContextTypes,
-    MessageHandler,
-    filters,
-)
-from openai import OpenAI
+from telegram import Update, ChatAction
+from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters
+from openai import AsyncOpenAI
+import asyncio
 
-# Configurações
-BOT_TOKEN = "7877551847:AAGEWNbIXmg49m4MJp8IPDycahowEi7TU80"
-OPENAI_API_KEY = "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"
+TOKEN = "7877551847:AAGEWNbIXmg49m4MJp8IPDycahowEi7TU80"
 WEBHOOK_URL = "https://telegram-wsro.onrender.com"
+OPENAI_API_KEY = "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"
 
-# Inicializa cliente OpenAI
-openai_client = OpenAI(api_key=OPENAI_API_KEY)
+openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY)
 
-# Logs
-logging.basicConfig(level=logging.INFO)
-
-# Função para simular digitação e responder em frases
-async def send_typing_message(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
-    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
-    frases = text.split(". ")
-    for frase in frases:
-        if frase.strip():
-            await asyncio.sleep(2)
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=frase.strip())
-    await context.bot.send_message(chat_id=update.effective_chat.id, text="Ossu 🥋")
-
-# Quando recebe mensagem
 async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_message = update.message.text
-    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+    texto = update.message.text
+    chat_id = update.effective_chat.id
 
-    response = openai_client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[{"role": "user", "content": user_message}],
-    )
+    await context.bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
 
-    resposta = response.choices[0].message.content
-    await send_typing_message(update, context, resposta)
+    try:
+        resposta = await openai_client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "Você é um mestre samurai espiritual, calmo, sábio e gentil. Fale como um mentor sereno, e termine suas respostas com 'ossu.'"},
+                {"role": "user", "content": texto}
+            ],
+            temperature=0.7,
+            max_tokens=1000,
+            stream=True,
+        )
 
-# Função principal
-def main():
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
+        texto_final = ""
+        async for parte in resposta:
+            try:
+                conteudo = parte.choices[0].delta.content
+                if conteudo:
+                    texto_final += conteudo
+            except Exception as e:
+                print("Erro em stream:", e)
+
+        texto_final += "\n\nossu."
+        await context.bot.send_message(chat_id=chat_id, text=texto_final)
+
+    except Exception as e:
+        print("Erro geral:", e)
+        await context.bot.send_message(chat_id=chat_id, text="Tive um problema interno. Tente novamente depois.\nossu.")
+
+if __name__ == "__main__":
+    app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, responder))
 
     app.run_webhook(
         listen="0.0.0.0",
         port=int(os.environ.get("PORT", 10000)),
-        webhook_url=WEBHOOK_URL,
+        webhook_url=WEBHOOK_URL
     )
-
-if __name__ == "__main__":
-    main()
