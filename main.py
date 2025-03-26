@@ -1,51 +1,61 @@
 import asyncio
 from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 
-# 🔐 Lista de e-mails autorizados (clientes Hotmart)
-AUTHORIZED_EMAILS = {
-    "paulocosta@samuraidaacupuntura.com.br",
-    "alceuacosta@gmail.com",
-    "andreiabioterapia@hotmail.com"
-}
+# 🔐 Token do seu bot
+TOKEN = "7877551847:AAED0zlqMiNgmxC4AIoCJMFSMZmV0evfIXM"
 
-# 🔗 Relaciona ID do usuário com e-mail validado
-authorized_users = {}
+# 📧 Lista de e-mails autorizados
+emails_autorizados = [
+    "cliente1@email.com",
+    "cliente2@email.com",
+    "cliente3@email.com"
+]
 
-# 📩 Comando para validar o e-mail
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Bem-vindo! Por favor, envie seu e-mail para validar o acesso.")
+# 💾 Armazena usuários autorizados por ID
+usuarios_autorizados = set()
 
-async def handle_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    email = update.message.text.strip().lower()
-    if email in AUTHORIZED_EMAILS:
-        authorized_users[update.effective_user.id] = email
-        await update.message.reply_text("✅ E-mail validado! Agora você tem acesso ao assistente.")
-    else:
-        await update.message.reply_text("❌ Este e-mail não está autorizado. Verifique sua compra.")
+# 🎯 Comando /start
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text("Olá! Envie o e-mail da sua compra na Hotmart para liberar o acesso ao dojo 🥋")
 
-# 🤖 Comando de conversa (só funciona se e-mail validado)
-async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# ✅ Verifica se o e-mail é autorizado
+async def verificar_email(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
-    if user_id not in authorized_users:
-        await update.message.reply_text("⚠️ Você precisa validar seu e-mail primeiro.")
-        return
+    texto = update.message.text.strip()
 
-    pergunta = update.message.text
-    resposta = f"💬 Você perguntou: {pergunta}\n(Resposta automática aqui...)"
-    await update.message.reply_text(resposta)
+    if "@" in texto and "." in texto:
+        if texto.lower() in emails_autorizados:
+            usuarios_autorizados.add(user_id)
+            await update.message.reply_text("✅ Acesso liberado! Pode enviar suas perguntas, guerreiro.")
+        else:
+            await update.message.reply_text("❌ E-mail não encontrado na lista de compradores.")
+    elif user_id in usuarios_autorizados:
+        await simular_resposta(update)
+    else:
+        await update.message.reply_text("⛔ Primeiro envie o e-mail da compra para entrar no dojo.")
 
-# 🧠 Inicializador com webhook limpo
-async def main():
-    application = ApplicationBuilder().token("8051144201:AAGXc6UHMzDaUPTcvC5l7P7D5f2rjKHeKeg").build()
+# ✍️ Simula digitação com mensagens em partes
+async def simular_resposta(update: Update) -> None:
+    msg = await update.message.reply_text("Escrevendo...")
 
-    await application.bot.delete_webhook(drop_pending_updates=True)
+    resposta_em_partes = [
+        "Você acessou a sabedoria do Samurai da Acupuntura 🐉",
+        "Essa jornada é feita de disciplina, energia e verdade.",
+        "Sinta-se parte da linhagem.",
+        "Caminhe com honra.",
+        "Ossu!"
+    ]
 
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_email))
-    application.add_handler(MessageHandler(filters.TEXT & filters.User(user_id=list(authorized_users.keys())), responder))
+    texto = ""
+    for parte in resposta_em_partes:
+        texto += parte + "\n"
+        await asyncio.sleep(1.5)
+        await msg.edit_text(texto)
 
-    await application.run_polling()
-
+# 🚀 Executa o bot
 if __name__ == "__main__":
-    asyncio.run(main())
+    app = ApplicationBuilder().token(TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, verificar_email))
+    app.run_polling()
