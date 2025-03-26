@@ -7,9 +7,9 @@ TOKEN = "7877551847:AAED0zlqMiNgmxC4AIoCJMFSMZmV0evfIXM"
 
 # 📧 Lista de e-mails autorizados
 emails_autorizados = [
-    "cliente1@email.com",
-    "cliente2@email.com",
-    "cliente3@email.com"
+    "paulocosta@samuraidaacupuntura.com.br",
+    "alceuacosta@gmail.com",
+    "andreiabioterapia@hotmail.com"
 ]
 
 # 💾 Armazena usuários autorizados por ID
