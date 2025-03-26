@@ -5,8 +5,8 @@ from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filte
 import logging
 
 # Configurações
-BOT_TOKEN = "SEU_TOKEN_DO_BOT"
-APP_URL = "https://SEU_PROJETO_ON_RENDER.com"
+BOT_TOKEN = "7877551847:AAED0zlqMiNgmxC4AIoCJMFSMZmV0evfIXM"
+APP_URL = "https://telegram-wsro.onrender.com"
 OPENAI_API_KEY = os.environ.get("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")  # chave será lida da variável de ambiente
 
 client = OpenAI(api_key=OPENAI_API_KEY)
