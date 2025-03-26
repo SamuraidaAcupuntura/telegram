@@ -1,59 +1,49 @@
-import logging
 import os
-import openai
+import logging
 from telegram import Update
 from telegram.constants import ChatAction
-from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
+from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters
+from openai import OpenAI
 
-# Configuração da sua chave OpenAI
-openai.api_key = "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"
+# Configurações
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+PORT = int(os.environ.get('PORT', '8080'))
+URL = os.getenv("RENDER_EXTERNAL_URL")
 
-# Token do seu bot Telegram
-BOT_TOKEN = "7877551847:AAGEWNbIXmg49m4MJp8IPDycahowEi7TU80"
+# OpenAI client (versão nova)
+openai_client = OpenAI(api_key=OPENAI_API_KEY)
 
-# Ativando logs
+# Log
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Função para lidar com mensagens
+# Função para responder
 async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_msg = update.message.text
 
     try:
-        # Mostra "digitando..."
         await context.bot.send_chat_action(chat_id=update.effective_chat.id, action=ChatAction.TYPING)
 
-        # Requisição à OpenAI
-        resposta = openai.ChatCompletion.create(
+        resposta = openai_client.chat.completions.create(
             model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": user_msg}],
+            messages=[
+                {"role": "system", "content": "Você é um mentor sábio chamado Samurai da Acupuntura."},
+                {"role": "user", "content": user_msg}
+            ],
             temperature=0.7,
             max_tokens=1000
         )
 
-        texto_resposta = resposta.choices[0].message.content.strip() + "\n\nossu."
-        await update.message.reply_text(texto_resposta)
+        conteudo = resposta.choices[0].message.content if resposta.choices else "⚠️ Sem resposta gerada."
+        await update.message.reply_text(conteudo.strip() + "\n\nossu.")
 
     except Exception as e:
-        logger.error(f"Erro interno: {e}")
+        logger.error(f"Erro interno: \n{e}")
         await update.message.reply_text("⚠️ Tive um problema interno ao responder. Verifique sua chave da OpenAI ou o modelo.\n\nossu.")
 
-# Função de /start
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Bot Samurai ativado. Envie uma mensagem para começar.\n\nossu.")
-
-# Função principal
-def main():
-    application = Application.builder().token(BOT_TOKEN).build()
-
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, responder))
-
-    application.run_webhook(
-        listen="0.0.0.0",
-        port=int(os.environ.get("PORT", 10000)),
-        webhook_url="https://telegram-wsro.onrender.com"
-    )
-
+# App
 if __name__ == "__main__":
-    main()
+    app = ApplicationBuilder().token(TELEGRAM_TOKEN).webhook_url(f"{URL}/webhook").build()
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, responder))
+    app.run_webhook(listen="0.0.0.0", port=PORT, webhook_url=f"{URL}/webhook")
