@@ -1,49 +1,42 @@
-import os
 import logging
 from telegram import Update
-from telegram.constants import ChatAction
-from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
 from openai import OpenAI
 
-# Configurações
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+# Configurar o cliente OpenAI com a nova versão da lib (1.x)
 openai_client = OpenAI(api_key="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")
-PORT = int(os.environ.get('PORT', '8080'))
-URL = os.getenv("RENDER_EXTERNAL_URL")
 
-# OpenAI client (versão nova)
-openai_client = OpenAI(api_key=OPENAI_API_KEY)
+# Ativar logs
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
-# Log
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Resposta ao /start
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Olá! Sou o Samurai da Acupuntura. Envie sua pergunta e eu responderei com a sabedoria dos antigos 🈶")
 
-# Função para responder
-async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_msg = update.message.text
+# Resposta a mensagens de texto
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_input = update.message.text
 
     try:
-        await context.bot.send_chat_action(chat_id=update.effective_chat.id, action=ChatAction.TYPING)
-
-        resposta = openai_client.chat.completions.create(
+        # Enviar a mensagem para a OpenAI
+        response = openai_client.chat.completions.create(
             model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "Você é um mentor sábio chamado Samurai da Acupuntura."},
-                {"role": "user", "content": user_msg}
-            ],
-            temperature=0.7,
-            max_tokens=1000
+            messages=[{"role": "user", "content": user_input}],
         )
 
-        conteudo = resposta.choices[0].message.content if resposta.choices else "⚠️ Sem resposta gerada."
-        await update.message.reply_text(conteudo.strip() + "\n\nossu.")
+        reply = response.choices[0].message.content
+        await update.message.reply_text(reply)
 
     except Exception as e:
-        logger.error(f"Erro interno: \n{e}")
-        await update.message.reply_text("⚠️ Tive um problema interno ao responder. Verifique sua chave da OpenAI ou o modelo.\n\nossu.")
+        logging.error(f"Erro interno: {e}")
+        await update.message.reply_text("⚠️ Tive um problema interno ao responder. Verifique a chave da OpenAI ou o modelo.")
 
-# App
-if __name__ == "__main__":
-    app = ApplicationBuilder().token(TELEGRAM_TOKEN).webhook_url(f"{URL}/webhook").build()
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, responder))
-    app.run_webhook(listen="0.0.0.0", port=PORT, webhook_url=f"{URL}/webhook")
+# Iniciar bot
+if __name__ == '__main__':
+    app = ApplicationBuilder().token("7877551847:AAGEWNbIXmg49m4MJp8IPDycahowEi7TU80").build()
+
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+    print("Bot rodando como um guerreiro ancestral 🐉")
+    app.run_polling()
