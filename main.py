@@ -1,5 +1,6 @@
 import os
-from telegram import Update, ChatAction
+from telegram import Update
+from telegram.constants import ChatAction
 from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters
 from openai import AsyncOpenAI
 import asyncio
@@ -35,7 +36,7 @@ async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if conteudo:
                     texto_final += conteudo
             except Exception as e:
-                print("Erro em stream:", e)
+                print("Erro no stream:", e)
 
         texto_final += "\n\nossu."
         await context.bot.send_message(chat_id=chat_id, text=texto_final)
