@@ -1,60 +1,70 @@
 import logging
 import asyncio
-from telegram import Update, ChatAction
+from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
-from openai import OpenAI
-import os
+import openai
 
-# Configuração
-BOT_TOKEN = "7877551847:AAGEWNbIXmg49m4MJp8IPDycahowEi7TU80"
-ALLOWED_EMAILS = {"drpaulo@gmail.com", "andreia@gmail.com", "samurai@mtc.com"}
-AUTHORIZED_USERS = set()
+# 🔒 Credenciais e e-mails permitidos
+BOT_TOKEN = '7877551847:AAGEWNbIXmg49m4MJp8IPDycahowEi7TU80'
+OPENAI_API_KEY = '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'
+EMAILS_AUTORIZADOS = ['paulocosta@samuraidaacupuntura.com.br', 'andreiabioterapia@hotmail.com']
 
-openai_client = OpenAI(api_key="SUA_API_OPENAI")
+openai.api_key = OPENAI_API_KEY
+usuarios_autorizados = set()
 
+# Log
 logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# Comando para registrar email
+# 🥋 Comandos do Bot
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Envie seu email para liberar o acesso.")
+    await update.message.reply_text("👋 Envie seu e-mail para ativar o acesso, guerreiro.")
 
-async def handle_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def verificar_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
     email = update.message.text.strip().lower()
-    if email in ALLOWED_EMAILS:
-        AUTHORIZED_USERS.add(update.effective_user.id)
-        await update.message.reply_text("✅ Acesso liberado. Pergunte o que quiser.")
+    if email in EMAILS_AUTORIZADOS:
+        usuarios_autorizados.add(update.effective_user.id)
+        await update.message.reply_text("✅ Acesso concedido. Pode perguntar, guerreiro.")
     else:
-        await update.message.reply_text("❌ Email não autorizado. Tente novamente.")
+        await update.message.reply_text("❌ E-mail não autorizado. Tente novamente.")
 
-# Comando de mensagem
-async def respond(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    if user_id not in AUTHORIZED_USERS:
-        await update.message.reply_text("⚠️ Envie seu email primeiro.")
+    if user_id not in usuarios_autorizados:
+        await update.message.reply_text("⚠️ Envie seu e-mail para liberar o acesso.")
         return
 
-    user_msg = update.message.text
+    pergunta = update.message.text
+    await update.message.chat.send_action(action="typing")
 
-    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action=ChatAction.TYPING)
+    try:
+        resposta = openai.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": pergunta}]
+        )
+        texto_resposta = resposta.choices[0].message.content
 
-    response = openai_client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[{"role": "user", "content": user_msg}]
-    )
+        frases = texto_resposta.split(". ")
+        for frase in frases:
+            if frase.strip():
+                await update.message.chat.send_action(action="typing")
+                await asyncio.sleep(1.5)  # Delay entre frases
+                await update.message.reply_text(frase.strip() + ".")
+        
+        await asyncio.sleep(1)
+        await update.message.reply_text("Ossu 🥋")
 
-    reply = response.choices[0].message.content
+    except Exception as e:
+        logger.error(f"Erro ao consultar OpenAI: {e}")
+        await update.message.reply_text("❌ Erro ao buscar resposta. Tente novamente.")
 
-    for chunk in reply.split("\n"):
-        if chunk.strip():
-            await update.message.reply_text(chunk.strip())
-            await asyncio.sleep(1)
+# 🧠 Execução
+if __name__ == '__main__':
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
 
-    await update.message.reply_text("Ossu 🥋")
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, verificar_email))
+    app.add_handler(MessageHandler(filters.TEXT & filters.User(user_id=usuarios_autorizados), responder))
 
-# Inicialização
-app = ApplicationBuilder().token(BOT_TOKEN).build()
-app.add_handler(CommandHandler("start", start))
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_email))
-app.add_handler(MessageHandler(filters.TEXT & filters.User(user_id=list(AUTHORIZED_USERS)), respond))
-
-app.run_polling()
+    print("🔥 Bot rodando com delay e estilo Samurai...")
+    app.run_polling()
