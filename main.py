@@ -1,41 +1,37 @@
 import logging
 import os
-import nest_asyncio
 from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from telegram.ext import Application, CommandHandler, ContextTypes
+import nest_asyncio
 
-# Configurações do bot
+# Configurações
 TOKEN = "7877551847:AAGEWNbIXmg49m4MJp8IPDycahowEi7TU80"
 APP_URL = "https://telegram-wsro.onrender.com"
 
-# Aplicar patch no event loop (necessário no Render)
-nest_asyncio.apply()
-
-# Ativar log
+# Ativar logs
 logging.basicConfig(level=logging.INFO)
 
-# Comando básico para testar se o bot está vivo
+# Comando de /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Olá, Samurai. Estou vivo!")
+    await update.message.reply_text("Olá! Eu sou o SamuraiBot e estou online!")
 
-# Função principal
+# Inicialização
 async def main():
-    app = ApplicationBuilder().token(TOKEN).build()
+    application = Application.builder().token(TOKEN).build()
+    application.add_handler(CommandHandler("start", start))
 
-    # Adiciona o handler do /start
-    app.add_handler(CommandHandler("start", start))
+    # Ativa o webhook
+    await application.bot.set_webhook(url=f"{APP_URL}/webhook")
+    logging.info("Webhook definido com sucesso!")
 
-    # Define o webhook
-    await app.bot.set_webhook(url=f"{APP_URL}/webhook")
-
-    # Inicia o servidor para escutar o webhook
-    await app.run_webhook(
+    # Inicia a aplicação via webhook
+    await application.run_webhook(
         listen="0.0.0.0",
         port=int(os.environ.get("PORT", 10000)),
-        webhook_url=f"{APP_URL}/webhook"
+        webhook_url=f"{APP_URL}/webhook",
     )
 
-# Roda o bot
-if __name__ == "__main__":
+if __name__ == '__main__':
+    nest_asyncio.apply()
     import asyncio
     asyncio.run(main())
