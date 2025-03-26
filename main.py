@@ -1,76 +1,59 @@
 import logging
 import asyncio
-from telegram import Update
-from telegram.constants import ChatAction
-from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler
-import openai
 import os
+from telegram import Update
+from telegram.ext import (
+    ApplicationBuilder,
+    ContextTypes,
+    MessageHandler,
+    filters,
+)
+from openai import OpenAI
 
-# Configurações iniciais
-openai.api_key = "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"
-ALLOWED_USERS = ["paulocosta@samuraidaacupuntura.com.br", "andreiabioterapia@hotmail.com"]
+# Configurações
+BOT_TOKEN = "7877551847:AAGEWNbIXmg49m4MJp8IPDycahowEi7TU80"
+OPENAI_API_KEY = "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"
+WEBHOOK_URL = "https://telegram-wsro.onrender.com"
 
-# Ativa logs
+# Inicializa cliente OpenAI
+openai_client = OpenAI(api_key=OPENAI_API_KEY)
+
+# Logs
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
-# Função para simular digitação
-async def send_typing_text(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str, delay: float = 0.7):
-    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action=ChatAction.TYPING)
-    await asyncio.sleep(delay)
+# Função para simular digitação e responder em frases
+async def send_typing_message(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
+    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+    frases = text.split(". ")
+    for frase in frases:
+        if frase.strip():
+            await asyncio.sleep(2)
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=frase.strip())
+    await context.bot.send_message(chat_id=update.effective_chat.id, text="Ossu 🥋")
 
-    sentences = text.split(". ")
-    for sentence in sentences:
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=sentence.strip())
-        await asyncio.sleep(delay)
+# Quando recebe mensagem
+async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_message = update.message.text
+    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
 
-    await context.bot.send_message(chat_id=update.effective_chat.id, text="Ossu")
+    response = openai_client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "user", "content": user_message}],
+    )
 
-# Comando /start
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    if user and user.username and user.username.lower() in [email.split("@")[0].lower() for email in ALLOWED_USERS]:
-        welcome_text = "Saudações, guerreiro. Você está conectado ao assistente do Samurai. Preparado para a Jornada?"
-        await send_typing_text(update, context, welcome_text)
-    else:
-        await update.message.reply_text("Acesso negado. Você não está autorizado. Contate o Samurai.")
+    resposta = response.choices[0].message.content
+    await send_typing_message(update, context, resposta)
 
-# Comando /ask para perguntar algo ao ChatGPT
-async def ask(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    if user and user.username and user.username.lower() in [email.split("@")[0].lower() for email in ALLOWED_USERS]:
-        question = " ".join(context.args)
-        if not question:
-            await update.message.reply_text("Envie uma pergunta após o comando /ask.")
-            return
+# Função principal
+def main():
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, responder))
 
-        await context.bot.send_chat_action(chat_id=update.effective_chat.id, action=ChatAction.TYPING)
-
-        try:
-            response = openai.ChatCompletion.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "system", "content": "Você é um assistente do Samurai da Acupuntura."},
-                    {"role": "user", "content": question},
-                ]
-            )
-            reply = response.choices[0].message.content
-            await send_typing_text(update, context, reply)
-        except Exception as e:
-            logger.error(f"Erro ao consultar OpenAI: {e}")
-            await update.message.reply_text("Houve um erro ao consultar o oráculo. Tente novamente.")
-    else:
-        await update.message.reply_text("Acesso negado. Você não está autorizado. Contate o Samurai.")
-
-# Inicialização
-if __name__ == '__main__':
-    application = ApplicationBuilder().token("7877551847:AAGEWNbIXmg49m4MJp8IPDycahowEi7TU80").build()
-
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("ask", ask))
-
-    application.run_webhook(
+    app.run_webhook(
         listen="0.0.0.0",
         port=int(os.environ.get("PORT", 10000)),
-        webhook_url="https://telegram-wsro.onrender.com"
+        webhook_url=WEBHOOK_URL,
     )
+
+if __name__ == "__main__":
+    main()
