@@ -4,26 +4,22 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 from openai import OpenAI
 
-# Configurações
 BOT_TOKEN = "7877551847:AAGEWNbIXmg49m4MJp8IPDycahowEi7TU80"
 APP_URL = "https://telegram-wsro.onrender.com"
 openai_client = OpenAI(api_key="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")
 
-# Logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 
-# Comando /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.message.reply_text("Olá! Sou o assistente do Samurai da Acupuntura. Envie uma pergunta para começar.")
+    await update.message.reply_text("Olá! Envie uma pergunta com /perguntar.")
 
-# Comando /perguntar
 async def perguntar(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     pergunta = ' '.join(context.args)
     if not pergunta:
-        await update.message.reply_text("Envie sua pergunta após o comando /perguntar.")
+        await update.message.reply_text("Envie sua pergunta após /perguntar.")
         return
 
     try:
@@ -37,10 +33,9 @@ async def perguntar(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         texto = resposta.choices[0].message.content
         await update.message.reply_text(texto)
     except Exception as e:
-        logging.error(f"Erro ao consultar OpenAI: {e}")
-        await update.message.reply_text("Ocorreu um erro ao buscar a resposta.")
+        logging.error(f"Erro OpenAI: {e}")
+        await update.message.reply_text("Erro ao buscar resposta.")
 
-# Iniciar o bot
 async def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
@@ -56,6 +51,12 @@ async def main():
         webhook_url=f"{APP_URL}/webhook"
     )
 
+# Adaptação para ambiente do Render
+import asyncio
 if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())
+    try:
+        asyncio.get_event_loop().run_until_complete(main())
+    except RuntimeError:
+        import nest_asyncio
+        nest_asyncio.apply()
+        asyncio.get_event_loop().run_until_complete(main())
