@@ -4,9 +4,9 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, fil
 
 # 🔐 Lista de e-mails autorizados (clientes Hotmart)
 AUTHORIZED_EMAILS = {
-    "cliente1@email.com",
-    "cliente2@email.com",
-    "cliente3@email.com"
+    "paulocosta@samuraidaacupuntura.com.br",
+    "alceuacosta@gmail.com",
+    "andreiabioterapia@hotmail.com"
 }
 
 # 🔗 Relaciona ID do usuário com e-mail validado
@@ -37,7 +37,7 @@ async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # 🧠 Inicializador com webhook limpo
 async def main():
-    application = ApplicationBuilder().token("SEU_TOKEN_AQUI").build()
+    application = ApplicationBuilder().token("8051144201:AAGXc6UHMzDaUPTcvC5l7P7D5f2rjKHeKeg").build()
 
     await application.bot.delete_webhook(drop_pending_updates=True)
 
