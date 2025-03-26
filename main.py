@@ -36,12 +36,12 @@ async def main():
     print("Bot iniciado com webhook!")
 
     # Inicia servidor webhook
-    await app.run_webhook(
-        listen="0.0.0.0",
-        port=int(os.environ.get("PORT", 10000)),
-        webhook_url=f"{APP_URL}/webhook",
-        path="/webhook",
-    )
+await app.run_webhook(
+    listen="0.0.0.0",
+    port=int(os.environ.get("PORT", 10000)),
+    webhook_url=f"{APP_URL}/webhook"
+)
+
 
 # Executa
 if __name__ == "__main__":
