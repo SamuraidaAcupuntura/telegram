@@ -4,33 +4,28 @@ import openai
 from telegram import Update
 from telegram.ext import Application, ContextTypes, MessageHandler, filters
 from dotenv import load_dotenv
+import httpx
 import asyncio
-import nest_asyncio
 
-# Carrega variáveis do .env
+# Carrega variáveis do .env ou do ambiente do Render
 load_dotenv()
 
-# Configurações
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 ASSISTANT_ID = os.getenv("ASSISTANT_ID")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 
-print("TOKEN CARREGADO:", TELEGRAM_TOKEN[:10] + "...")
-print("CHAVE OPENAI:", OPENAI_API_KEY[:10] + "...")
-
-# Inicializa cliente OpenAI
+# Inicializa o cliente OpenAI com header correto
 client = openai.OpenAI(
     api_key=OPENAI_API_KEY,
     default_headers={"OpenAI-Beta": "assistants=v2"}
 )
 
-
 # Configura logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Função para lidar com mensagens do Telegram
+# Função para responder mensagens
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_input = update.message.text
     logger.info(f"Mensagem recebida: {user_input}")
@@ -38,7 +33,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         thread = client.beta.threads.create()
-
         client.beta.threads.messages.create(
             thread_id=thread.id,
             role="user",
@@ -51,18 +45,17 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         while True:
-            run_check = client.beta.threads.runs.retrieve(thread_id=thread.id, run_id=run.id)
-            if run_check.status == "completed":
+            run_status = client.beta.threads.runs.retrieve(thread_id=thread.id, run_id=run.id)
+            if run_status.status == "completed":
                 break
             await asyncio.sleep(1)
 
         messages = client.beta.threads.messages.list(thread_id=thread.id)
         resposta = messages.data[0].content[0].text.value
-
         await update.message.reply_text(resposta + "\n\nOssu.")
-    
+
     except Exception as e:
-        logger.error("Erro no processamento da mensagem:", exc_info=e)
+        logger.error("Erro ao responder:", exc_info=e)
         await update.message.reply_text("Algo deu errado no dojo. Tente novamente.")
 
 # Função principal
@@ -79,12 +72,8 @@ async def main():
         webhook_url=WEBHOOK_URL
     )
 
-# Execução
+# Executa a aplicação
 if __name__ == "__main__":
+    import nest_asyncio
     nest_asyncio.apply()
-    loop = asyncio.get_event_loop()
-
-    if loop.is_running():
-        loop.create_task(main())
-    else:
-        loop.run_until_complete(main())
+    asyncio.run(main())
