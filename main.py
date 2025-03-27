@@ -20,7 +20,11 @@ print("TOKEN CARREGADO:", TELEGRAM_TOKEN[:10] + "...")
 print("CHAVE OPENAI:", OPENAI_API_KEY[:10] + "...")
 
 # Inicializa cliente OpenAI
-client = openai.OpenAI(api_key=OPENAI_API_KEY)
+client = openai.OpenAI(
+    api_key=OPENAI_API_KEY,
+    default_headers={"OpenAI-Beta": "assistants=v2"}
+)
+
 
 # Configura logging
 logging.basicConfig(level=logging.INFO)
