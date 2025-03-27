@@ -6,9 +6,8 @@ from telegram.ext import Application, ContextTypes, MessageHandler, filters
 from dotenv import load_dotenv
 import httpx
 import asyncio
-import nest_asyncio
 
-nest_asyncio.apply()
+# Carrega variáveis do .env
 load_dotenv()
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
@@ -16,36 +15,38 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 ASSISTANT_ID = os.getenv("ASSISTANT_ID")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 
-client = openai.OpenAI(
+# Inicializa o cliente OpenAI com o cabeçalho correto para Assistants v2
+client = openai.AsyncOpenAI(
     api_key=OPENAI_API_KEY,
     default_headers={"OpenAI-Beta": "assistants=v2"}
 )
 
+# Configura o logger
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Função para lidar com mensagens recebidas
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_input = update.message.text
+    logger.info(f"Mensagem recebida: {user_input}")
+    
     try:
-        user_input = update.message.text
-        logger.info(f"Mensagem recebida: {user_input}")
-
         await update.message.reply_text("Escrevendo...")
 
-        thread = client.beta.threads.create()
-
-        client.beta.threads.messages.create(
+        thread = await client.beta.threads.create()
+        await client.beta.threads.messages.create(
             thread_id=thread.id,
             role="user",
             content=user_input
         )
 
-        run = client.beta.threads.runs.create(
+        run = await client.beta.threads.runs.create(
             thread_id=thread.id,
             assistant_id=ASSISTANT_ID
         )
 
         while True:
-            run_status = client.beta.threads.runs.retrieve(
+            run_status = await client.beta.threads.runs.retrieve(
                 thread_id=thread.id,
                 run_id=run.id
             )
@@ -53,7 +54,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 break
             await asyncio.sleep(1)
 
-        messages = client.beta.threads.messages.list(thread_id=thread.id)
+        messages = await client.beta.threads.messages.list(thread_id=thread.id)
         resposta = messages.data[0].content[0].text.value
 
         await update.message.reply_text(resposta + "\n\nOssu.")
@@ -65,6 +66,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except:
             pass
 
+# Função principal da aplicação
 async def main():
     app = Application.builder().token(TELEGRAM_TOKEN).build()
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
@@ -78,5 +80,8 @@ async def main():
         webhook_url=WEBHOOK_URL
     )
 
+# Execução
 if __name__ == "__main__":
+    import nest_asyncio
+    nest_asyncio.apply()
     asyncio.run(main())
