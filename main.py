@@ -8,12 +8,13 @@ import httpx
 
 load_dotenv()
 
-# Configurações
+# Configurações:
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 print("TOKEN CARREGADO:", TELEGRAM_TOKEN)
-OPENAI_API_KEY = os.getenv("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")
-ASSISTANT_ID = os.getenv("asst_JuGSeUFtvvkiSCfav4LNQUqw")  # ID do seu assistente criado na OpenAI
-WEBHOOK_URL = os.getenv("https://telegram-wsro.onrender.com")
+
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+ASSISTANT_ID = os.getenv("ASSISTANT_ID")
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 
 openai.api_key = OPENAI_API_KEY
 
