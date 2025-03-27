@@ -4,3 +4,4 @@ aiohttp
 httpx~=0.24.0
 nest_asyncio
 python-dotenv
+uvicorn
