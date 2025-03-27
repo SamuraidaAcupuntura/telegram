@@ -1,6 +1,5 @@
-import asyncio
-import logging
 import os
+import logging
 from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import (
@@ -12,12 +11,14 @@ from telegram.ext import (
 )
 from openai import OpenAI
 import httpx
+import asyncio
 
 load_dotenv()
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+PORT = int(os.environ.get("PORT", 10000))
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
@@ -39,7 +40,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply = response.choices[0].message.content
     await update.message.reply_text(reply)
 
-async def setup():
+async def main():
     app = Application.builder().token(TELEGRAM_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
@@ -48,16 +49,11 @@ async def setup():
     async with httpx.AsyncClient() as client:
         url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setWebhook"
         await client.post(url, json={"url": f"{WEBHOOK_URL}"})
+        logger.info("Webhook definido com sucesso!")
 
-    logger.info("Webhook definido com sucesso!")
-    await app.run_webhook(
-        listen="0.0.0.0",
-        port=10000,
-        webhook_url=WEBHOOK_URL
-    )
+    await app.initialize()
+    await app.start()
+    await app.updater.start_webhook(listen="0.0.0.0", port=PORT, webhook_url=WEBHOOK_URL)
 
 if __name__ == "__main__":
-    try:
-        asyncio.get_event_loop().run_until_complete(setup())
-    except RuntimeError as e:
-        logger.error(f"Erro de loop de evento: {e}")
+    asyncio.run(main())
