@@ -55,9 +55,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         resposta = messages.data[0].content[0].text.value
         await update.message.reply_text(resposta + "\n\nOssu.")
 
-    except Exception as e:
-        logger.error("Erro no processamento da mensagem:", exc_info=e)
-        await update.message.reply_text("Algo deu errado no dojo. Tente novamente.")
+   except Exception as e:
+    import traceback
+    logger.error("Erro no processamento da mensagem:")
+    logger.error(traceback.format_exc())  # Mostra o erro completo
+    await update.message.reply_text(f"Erro técnico:\n{e}\n\nAlgo deu errado no dojo. Tente novamente.")
+
 
 # Função main para iniciar o bot com webhook
 async def main():
