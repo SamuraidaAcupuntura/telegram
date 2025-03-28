@@ -3,10 +3,14 @@ import logging
 import openai
 import httpx
 import asyncio
+import nest_asyncio
 
 from telegram import Update
 from telegram.ext import Application, ContextTypes, MessageHandler, filters
 from dotenv import load_dotenv
+
+# Corrige loop de evento já rodando
+nest_asyncio.apply()
 
 # Carrega variáveis de ambiente
 load_dotenv()
@@ -19,7 +23,7 @@ WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# OpenAI client com header para usar a API nova v2
+# Cliente OpenAI com API v2
 client = openai.AsyncOpenAI(
     api_key=OPENAI_API_KEY,
     default_headers={"OpenAI-Beta": "assistants=v2"}
@@ -79,10 +83,6 @@ async def main():
         webhook_url=WEBHOOK_URL
     )
 
-import nest_asyncio
-import asyncio
-
-nest_asyncio.apply()  # Corrige o erro de loop já em execução
-
+# Roda a aplicação
 if __name__ == "__main__":
     asyncio.get_event_loop().run_until_complete(main())
