@@ -3,14 +3,13 @@ import logging
 import openai
 import httpx
 import asyncio
-import base64
 import nest_asyncio
 from dotenv import load_dotenv
 from telegram import Update
 from telegram.constants import ChatAction
 from telegram.ext import Application, ContextTypes, MessageHandler, filters
 
-# Corrigir loop duplicado no Render
+# Corrigir problemas de loop em serviços como Render
 nest_asyncio.apply()
 
 # Carregar variáveis de ambiente
@@ -24,14 +23,14 @@ WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Cliente OpenAI com header da API v2
+# Cliente da OpenAI com headers da API v2
 client = openai.AsyncOpenAI(
     api_key=OPENAI_API_KEY,
     default_headers={"OpenAI-Beta": "assistants=v2"}
 )
 
-# Manipulador de mensagens de texto
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# Função para responder mensagens de texto
+async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         if update.message.chat.type != "private":
             return
@@ -57,7 +56,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             status = await client.beta.threads.runs.retrieve(thread_id=thread.id, run_id=run.id)
             if status.status == "completed":
                 break
-            await asyncio.sleep(1)
+            await asyncio.sleep(0.5)
 
         messages = await client.beta.threads.messages.list(thread_id=thread.id)
         resposta = messages.data[-1].content[0].text.value.strip()
@@ -65,15 +64,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         for linha in resposta.split("\n"):
             if linha.strip():
                 await update.message.reply_text(linha.strip())
-                await asyncio.sleep(0.6)
-
-        await update.message.reply_text("ossu.")
+                await asyncio.sleep(0.3)
 
     except Exception as e:
-        logger.error("Erro ao responder:", exc_info=True)
-        await update.message.reply_text("Erro ao responder. Tente novamente.")
+        logger.error("Erro ao responder mensagem:", exc_info=True)
+        await update.message.reply_text("⚠️ Erro ao processar. Tente novamente.")
 
-# Manipulador de imagens
+# Função para processar imagens
 async def handle_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         if update.message.chat.type != "private":
@@ -81,9 +78,9 @@ async def handle_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await context.bot.send_chat_action(chat_id=update.effective_chat.id, action=ChatAction.TYPING)
 
-        file = await update.message.photo[-1].get_file()
-        image_bytes = await file.download_as_bytearray()
-        image_b64 = base64.b64encode(image_bytes).decode("utf-8")
+        file_id = update.message.photo[-1].file_id
+        file_info = await context.bot.get_file(file_id)
+        file_url = f"https://api.telegram.org/file/bot{TELEGRAM_TOKEN}/{file_info.file_path}"
 
         thread = await client.beta.threads.create()
         await client.beta.threads.messages.create(
@@ -93,7 +90,7 @@ async def handle_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 {
                     "type": "image_url",
                     "image_url": {
-                        "url": f"data:image/jpeg;base64,{image_b64}"
+                        "url": file_url
                     }
                 }
             ]
@@ -108,7 +105,7 @@ async def handle_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
             status = await client.beta.threads.runs.retrieve(thread_id=thread.id, run_id=run.id)
             if status.status == "completed":
                 break
-            await asyncio.sleep(1)
+            await asyncio.sleep(0.5)
 
         messages = await client.beta.threads.messages.list(thread_id=thread.id)
         resposta = messages.data[-1].content[0].text.value.strip()
@@ -116,18 +113,17 @@ async def handle_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
         for linha in resposta.split("\n"):
             if linha.strip():
                 await update.message.reply_text(linha.strip())
-                await asyncio.sleep(0.6)
-
-        await update.message.reply_text("ossu.")
+                await asyncio.sleep(0.3)
 
     except Exception as e:
         logger.error("Erro ao processar imagem:", exc_info=True)
-        await update.message.reply_text("Não consegui entender a imagem. Tente outra ou descreva com palavras.")
+        await update.message.reply_text("❌ Não consegui analisar a imagem. Envie novamente ou tente outra.")
 
-# Inicialização
+# Inicialização do bot
 async def main():
     app = Application.builder().token(TELEGRAM_TOKEN).build()
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
     app.add_handler(MessageHandler(filters.PHOTO, handle_image))
 
     async with httpx.AsyncClient() as client_http:
