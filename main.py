@@ -59,7 +59,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await asyncio.sleep(1)
 
         messages = await client.beta.threads.messages.list(thread_id=thread.id)
-        resposta = messages.data[-1].content[0].text.value.strip()
+
+        # Pegar a última resposta do assistente
+        resposta = None
+        for m in reversed(messages.data):
+            if m.role == "assistant":
+                resposta = m.content[0].text.value.strip()
+                break
+
+        if not resposta:
+            resposta = "Não consegui gerar uma resposta agora."
 
         # Enviar linha por linha
         for linha in resposta.split("\n"):
