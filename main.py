@@ -58,16 +58,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 break
             await asyncio.sleep(1)
 
-       messages = await client.beta.threads.messages.list(thread_id=thread.id)
-resposta = ""
+        messages = await client.beta.threads.messages.list(thread_id=thread.id)
+        resposta = messages.data[-1].content[0].text.value.strip()
 
-for msg in reversed(messages.data):
-    if msg.role == "assistant":
-        resposta = msg.content[0].text.value.strip()
-        break
+        # Enviar linha por linha
+        for linha in resposta.split("\n"):
+            if linha.strip():
+                await update.message.reply_text(linha.strip())
+                await asyncio.sleep(0.6)
 
-
-        await update.message.reply_text(resposta)
+        await update.message.reply_text("ossu.")
 
     except Exception as e:
         logger.error("Erro ao responder:", exc_info=True)
