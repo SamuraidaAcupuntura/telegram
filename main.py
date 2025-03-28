@@ -79,5 +79,10 @@ async def main():
         webhook_url=WEBHOOK_URL
     )
 
+import nest_asyncio
+import asyncio
+
+nest_asyncio.apply()  # Corrige o erro de loop já em execução
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.get_event_loop().run_until_complete(main())
