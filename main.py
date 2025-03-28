@@ -58,8 +58,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 break
             await asyncio.sleep(1)
 
-        messages = await client.beta.threads.messages.list(thread_id=thread.id)
-        resposta = messages.data[-1].content[0].text.value.strip()
+       messages = await client.beta.threads.messages.list(thread_id=thread.id)
+resposta = ""
+
+for msg in reversed(messages.data):
+    if msg.role == "assistant":
+        resposta = msg.content[0].text.value.strip()
+        break
+
 
         await update.message.reply_text(resposta)
 
