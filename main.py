@@ -25,7 +25,11 @@ async def responder_por_frase(texto, update: Update, context: ContextTypes.DEFAU
         if frase.strip():
             await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
             await asyncio.sleep(1.2)
-            await update.message.reply_text(frase.strip())
+            if update.message:
+    await update.message.reply_text(frase.strip())
+else:
+    await context.bot.send_message(chat_id=update.effective_chat.id, text=frase.strip())
+
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_message = update.message.text
