@@ -1,62 +1,54 @@
 import os
-from dotenv import load_dotenv
-import logging
-from telegram import Update
-from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters
 import httpx
-import asyncio
-import nest_asyncio
+from dotenv import load_dotenv
 
-nest_asyncio.apply()
 load_dotenv()
 
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-ASSISTANT_ID = os.getenv("ASSISTANT_ID")
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+api_key = os.getenv("OPENAI_API_KEY")
+assistant_id = os.getenv("ASSISTANT_ID")
 
-if not TELEGRAM_TOKEN or not OPENAI_API_KEY or not ASSISTANT_ID or not WEBHOOK_URL:
-    raise ValueError("Variáveis de ambiente não encontradas. Verifique seu .env.")
+if not api_key or not assistant_id:
+    raise ValueError("Variáveis de ambiente ausentes.")
 
-logging.basicConfig(level=logging.INFO)
+headers = {
+    "Authorization": f"Bearer {api_key}",
+    "OpenAI-Beta": "assistants=v2",
+    "Content-Type": "application/json",
+}
 
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_message = update.message.text
-    logging.info(f"Mensagem recebida: {user_message}")
+try:
+    # 1. Criar thread
+    response = httpx.post("https://api.openai.com/v1/threads", headers=headers)
+    response.raise_for_status()
+    thread_id = response.json()["id"]
+    print("✅ Thread criada:", thread_id)
 
-    headers = {
-        "Authorization": f"Bearer {OPENAI_API_KEY}",
-        "Content-Type": "application/json"
+    # 2. Enviar mensagem para o thread
+    message_payload = {
+        "role": "user",
+        "content": "Olá, tudo bem?"
     }
-
-    async with httpx.AsyncClient() as client:
-        try:
-            thread_response = await client.post("https://api.openai.com/v1/threads", headers=headers)
-            thread_response.raise_for_status()
-            thread_id = thread_response.json()["id"]
-
-            message_payload = {"role": "user", "content": user_message}
-            await client.post(f"https://api.openai.com/v1/threads/{thread_id}/messages", headers=headers, json=message_payload)
-
-            run_payload = {"assistant_id": ASSISTANT_ID}
-            run_response = await client.post(f"https://api.openai.com/v1/threads/{thread_id}/runs", headers=headers, json=run_payload)
-            run_response.raise_for_status()
-
-            await context.bot.send_message(chat_id=update.effective_chat.id, text="✅ Mensagem recebida! Aguarde a resposta do assistente.")
-
-        except Exception as e:
-            logging.error(f"Erro ao gerar resposta: {e}")
-            await context.bot.send_message(chat_id=update.effective_chat.id, text="❌ Erro ao processar sua mensagem.")
-
-async def main():
-    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-
-    await app.run_webhook(
-        listen="0.0.0.0",
-        port=10000,
-        webhook_url=WEBHOOK_URL,
+    response = httpx.post(
+        f"https://api.openai.com/v1/threads/{thread_id}/messages",
+        headers=headers,
+        json=message_payload
     )
+    response.raise_for_status()
+    print("✅ Mensagem enviada")
 
-if __name__ == "__main__":
-    asyncio.run(main())
+    # 3. Iniciar execução com o assistant_id
+    run_payload = {
+        "assistant_id": assistant_id
+    }
+    response = httpx.post(
+        f"https://api.openai.com/v1/threads/{thread_id}/runs",
+        headers=headers,
+        json=run_payload
+    )
+    response.raise_for_status()
+    print("✅ Execução iniciada:", response.json()["id"])
+
+except httpx.HTTPStatusError as e:
+    print("❌ Erro HTTP:", e.response.status_code, e.response.text)
+except Exception as e:
+    print("❌ Erro:", str(e))
