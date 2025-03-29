@@ -26,10 +26,7 @@ async def responder_por_frase(texto, update: Update, context: ContextTypes.DEFAU
         if frase.strip():
             await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
             await asyncio.sleep(1.2)
-            if update.message:
-                await update.message.reply_text(frase.strip())
-            else:
-                await context.bot.send_message(chat_id=update.effective_chat.id, text=frase.strip())
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=frase.strip())
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_message = update.message.text
@@ -79,4 +76,5 @@ async def main():
 if __name__ == "__main__":
     import nest_asyncio
     nest_asyncio.apply()
-    asyncio.run(main())
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(main())
