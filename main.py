@@ -8,10 +8,11 @@ from dotenv import load_dotenv
 from openai import AsyncOpenAI
 
 load_dotenv()
+
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_ASSISTANT_ID = os.getenv("OPENAI_ASSISTANT_ID")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
-ASSISTANT_ID = os.getenv("OPENAI_ASSISTANT_ID")
 
 client = AsyncOpenAI(api_key=OPENAI_API_KEY)
 logging.basicConfig(level=logging.INFO)
@@ -41,7 +42,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         run = await client.beta.threads.runs.create(
             thread_id=thread.id,
-            assistant_id=ASSISTANT_ID,
+            assistant_id=OPENAI_ASSISTANT_ID,
         )
 
         while True:
@@ -76,5 +77,4 @@ async def main():
 if __name__ == "__main__":
     import nest_asyncio
     nest_asyncio.apply()
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(main())
+    asyncio.run(main())
