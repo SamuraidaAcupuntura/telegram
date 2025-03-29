@@ -11,6 +11,7 @@ load_dotenv()
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+ASSISTANT_ID = os.getenv("OPENAI_ASSISTANT_ID")
 
 client = AsyncOpenAI(api_key=OPENAI_API_KEY)
 logging.basicConfig(level=logging.INFO)
@@ -43,7 +44,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         run = await client.beta.threads.runs.create(
             thread_id=thread.id,
-            assistant_id=os.getenv("OPENAI_ASSISTANT_ID"),
+            assistant_id=ASSISTANT_ID,
         )
 
         while True:
@@ -61,7 +62,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     except Exception as e:
         logger.error(f"Erro ao gerar resposta: {e}")
-        await update.message.reply_text("Ocorreu um erro ao gerar a resposta. Tente novamente mais tarde.")
+        await context.bot.send_message(chat_id=update.effective_chat.id, text="Ocorreu um erro ao gerar a resposta. Tente novamente mais tarde.")
 
 async def main():
     application = Application.builder().token(TELEGRAM_TOKEN).build()
