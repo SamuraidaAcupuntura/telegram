@@ -1,54 +1,83 @@
 import os
 import httpx
-from dotenv import load_dotenv
+from flask import Flask, request
+import json
 
-load_dotenv()
+app = Flask(__name__)
 
-api_key = os.getenv("OPENAI_API_KEY")
-assistant_id = os.getenv("ASSISTANT_ID")
+# Variáveis de ambiente (para segurança no Render, coloque na aba Environment)
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+ASSISTANT_ID = os.getenv("ASSISTANT_ID")
+WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "samurai")  # opcional
 
-if not api_key or not assistant_id:
-    raise ValueError("Variáveis de ambiente ausentes.")
+TELEGRAM_API_URL = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
 
-headers = {
-    "Authorization": f"Bearer {api_key}",
+# Headers para a API da OpenAI
+openai_headers = {
+    "Authorization": f"Bearer {OPENAI_API_KEY}",
     "OpenAI-Beta": "assistants=v2",
     "Content-Type": "application/json",
 }
 
-try:
-    # 1. Criar thread
-    response = httpx.post("https://api.openai.com/v1/threads", headers=headers)
-    response.raise_for_status()
-    thread_id = response.json()["id"]
-    print("✅ Thread criada:", thread_id)
-
-    # 2. Enviar mensagem para o thread
-    message_payload = {
-        "role": "user",
-        "content": "Olá, tudo bem?"
+def send_telegram_message(chat_id, text):
+    payload = {
+        "chat_id": chat_id,
+        "text": text
     }
-    response = httpx.post(
-        f"https://api.openai.com/v1/threads/{thread_id}/messages",
-        headers=headers,
-        json=message_payload
-    )
-    response.raise_for_status()
-    print("✅ Mensagem enviada")
+    httpx.post(f"{TELEGRAM_API_URL}/sendMessage", json=payload)
 
-    # 3. Iniciar execução com o assistant_id
-    run_payload = {
-        "assistant_id": assistant_id
-    }
-    response = httpx.post(
-        f"https://api.openai.com/v1/threads/{thread_id}/runs",
-        headers=headers,
-        json=run_payload
-    )
-    response.raise_for_status()
-    print("✅ Execução iniciada:", response.json()["id"])
+@app.route('/', methods=['POST'])
+def webhook():
+    data = request.json
 
-except httpx.HTTPStatusError as e:
-    print("❌ Erro HTTP:", e.response.status_code, e.response.text)
-except Exception as e:
-    print("❌ Erro:", str(e))
+    if 'message' not in data:
+        return {"ok": True}
+
+    chat_id = data['message']['chat']['id']
+    user_msg = data['message'].get('text', '')
+
+    try:
+        # Cria thread
+        thread_response = httpx.post("https://api.openai.com/v1/threads", headers=openai_headers)
+        thread_response.raise_for_status()
+        thread_id = thread_response.json()["id"]
+
+        # Envia mensagem do usuário
+        httpx.post(
+            f"https://api.openai.com/v1/threads/{thread_id}/messages",
+            headers=openai_headers,
+            json={"role": "user", "content": user_msg}
+        )
+
+        # Inicia a execução do assistente
+        run_response = httpx.post(
+            f"https://api.openai.com/v1/threads/{thread_id}/runs",
+            headers=openai_headers,
+            json={"assistant_id": ASSISTANT_ID}
+        )
+        run_id = run_response.json()["id"]
+
+        # Aguarda a conclusão da execução
+        while True:
+            run_status = httpx.get(
+                f"https://api.openai.com/v1/threads/{thread_id}/runs/{run_id}",
+                headers=openai_headers
+            ).json()
+            if run_status["status"] == "completed":
+                break
+
+        # Busca a resposta
+        messages = httpx.get(
+            f"https://api.openai.com/v1/threads/{thread_id}/messages",
+            headers=openai_headers
+        ).json()
+
+        final_answer = messages['data'][0]['content'][0]['text']['value']
+        send_telegram_message(chat_id, final_answer)
+
+    except Exception as e:
+        print("Erro:", e)
+        send_telegram_message(chat_id, "⚠️ Ocorreu um erro. Tente novamente.")
+
+    return {"ok": True}
