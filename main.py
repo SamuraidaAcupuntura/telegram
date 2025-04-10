@@ -1,96 +1,44 @@
-
 import os
 import logging
-import openai
-import httpx
-import asyncio
-import nest_asyncio
-from dotenv import load_dotenv
 from telegram import Update
-from telegram.constants import ChatAction
-from telegram.ext import Application, ContextTypes, MessageHandler, filters
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
+from openai import OpenAI
 
-# Corrigir loop duplicado no Render
-nest_asyncio.apply()
+TOKEN_TELEGRAM = os.getenv('TELEGRAM_TOKEN')
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+ASSISTANT_ID = os.getenv('ASSISTANT_ID')
 
-# Carregar variáveis de ambiente
-load_dotenv()
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-ASSISTANT_ID = os.getenv("ASSISTANT_ID")
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+openai_client = OpenAI(api_key=OPENAI_API_KEY)
 
-# Configurar logs
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Cliente OpenAI com header da API v2
-client = openai.AsyncOpenAI(
-    api_key=OPENAI_API_KEY,
-    default_headers={"OpenAI-Beta": "assistants=v2"}
-)
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Olá! Samurai Bot online.")
 
-# Manipulador de mensagens
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
-        if update.message.chat.type != "private":
-            return
+        user_message = update.message.text
+        thread = openai_client.beta.threads.create()
+        openai_client.beta.threads.messages.create(thread_id=thread.id, role="user", content=user_message)
 
-        user_input = update.message.text
-        logger.info(f"Mensagem recebida: {user_input}")
+        run = openai_client.beta.threads.runs.create(thread_id=thread.id, assistant_id=ASSISTANT_ID)
 
-        await context.bot.send_chat_action(chat_id=update.effective_chat.id, action=ChatAction.TYPING)
+        while run.status in ["queued", "in_progress"]:
+            run = openai_client.beta.threads.runs.retrieve(thread_id=thread.id, run_id=run.id)
 
-        thread = await client.beta.threads.create()
-        await client.beta.threads.messages.create(
-            thread_id=thread.id,
-            role="user",
-            content=user_input
-        )
+        messages = openai_client.beta.threads.messages.list(thread_id=thread.id)
+        resposta = messages.data[0].content[0].text.value
 
-        run = await client.beta.threads.runs.create(
-            thread_id=thread.id,
-            assistant_id=ASSISTANT_ID
-        )
-
-        while True:
-            status = await client.beta.threads.runs.retrieve(thread_id=thread.id, run_id=run.id)
-            if status.status == "completed":
-                break
-            await asyncio.sleep(1)
-
-        messages = await client.beta.threads.messages.list(thread_id=thread.id)
-        resposta = messages.data[-1].content[0].text.value.strip()
-
-        # Enviar linha por linha
-        for linha in resposta.split("\n"):
-            if linha.strip():
-                await update.message.reply_text(linha.strip())
-                await asyncio.sleep(0.6)
-
-        await update.message.reply_text("ossu.")
+        await update.message.reply_text(resposta)
 
     except Exception as e:
-        logger.error("Erro ao responder:", exc_info=True)
-        await update.message.reply_text("Erro ao responder. Tente novamente.")
+        logger.error(f"Erro ao processar mensagem: {e}")
+        await update.message.reply_text("⚠️ Ocorreu um erro ao gerar resposta.")
 
-# Inicialização
-async def main():
-    app = Application.builder().token(TELEGRAM_TOKEN).build()
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-
-    async with httpx.AsyncClient() as client_http:
-        await client_http.post(
-            f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setWebhook",
-            params={"url": WEBHOOK_URL}
-        )
-        logger.info("Webhook definido com sucesso!")
-
-    await app.run_webhook(
-        listen="0.0.0.0",
-        port=10000,
-        webhook_url=WEBHOOK_URL
-    )
-
-if __name__ == "__main__":
-    asyncio.run(main())
+if __name__ == '__main__':
+    import asyncio
+    app = ApplicationBuilder().token(TOKEN_TELEGRAM).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
+    asyncio.run(app.run_polling())
